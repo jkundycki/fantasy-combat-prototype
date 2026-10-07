@@ -1,0 +1,12 @@
+# Godot-generated import/editor cache
+.godot/
+# Local historical snapshots
+backups/
+# Local credentials and machine files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
+Thumbs.db
