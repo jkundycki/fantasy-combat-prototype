@@ -1,35 +1,46 @@
 extends CharacterBody3D
 
+signal health_changed
+const Feedback = preload("res://sandbox/combat_feedback.gd")
+const DamageNumber = preload("res://sandbox/damage_number.gd")
+
 const Impact = preload("res://sandbox/incoming_attack.gd")
 const Projectile = preload("res://sandbox/fireball.gd")
 @export var ai_enabled: bool = true
 @export_enum("OFF", "BLOCK", "PARRY") var test_guard_mode: int = 0
 @export var max_health: float = 100.0
-@export var move_speed: float = 1.5
-@export var attack_interval: float = 1.4
+@export var move_speed: float = 1.2
+@export var attack_interval: float = 2.8
 @export_group("Melee")
-@export var melee_startup: float = 0.8
-@export var melee_active: float = 0.16
-@export var melee_recovery: float = 1.0
+@export var melee_startup: float = 1.6
+@export var melee_active: float = 0.32
+@export var melee_recovery: float = 2.0
 @export var melee_range: float = 2.1
 @export var melee_arc: float = 90.0
 @export var melee_damage: float = 14.0
+@export var melee_guard_damage: float = 15.0
+@export var melee_stagger: float = 0.0
+@export var melee_hit_stop: float = 0.0
 @export var melee_height: float = 2.8
 @export_group("Fireball")
-@export var fireball_startup: float = 0.9
-@export var fireball_recovery: float = 1.1
-@export var projectile_speed: float = 5.0
+@export var fireball_startup: float = 1.8
+@export var fireball_recovery: float = 2.2
+@export var projectile_speed: float = 2.5
 @export var projectile_damage: float = 12.0
+@export var projectile_guard_damage: float = 15.0
 @export var projectile_blockable: bool = true
 @export var projectile_reflectable: bool = true
 @export_group("Feedback and reset")
-@export var flash_duration: float = 0.09
+@export var flash_duration: float = 0.18
 @export var hit_recoil_distance: float = 0.1
 @export var stagger_recoil_distance: float = 0.3
-@export var recoil_return_speed: float = 1.5
+@export var recoil_return_speed: float = 0.75
 @export var reset_delay: float = 1.0
 
-var health: float = 100.0
+var health: float = 100.0:
+	set(value):
+		health = clampf(value, 0, max_health)
+		health_changed.emit()
 var state: String = "IDLE"
 var elapsed: float = 0.0
 var cooldown: float = 1.4
@@ -40,16 +51,24 @@ var reset_remaining: float = 0.0
 var attack_yaw: float = 0.0
 var aim_point := Vector3.ZERO
 var hit_player: bool = false
-var debug_enabled: bool = true
+var debug_enabled: bool = false
 var spawn_position := Vector3.ZERO
 var melee_shape := ConvexPolygonShape3D.new()
 var melee_debug: MeshInstance3D
 var visual: MeshInstance3D
 var material: StandardMaterial3D
 var weapon: MeshInstance3D
+var shield: MeshInstance3D
+var guard
 @onready var player = get_node("../Player")
 
 func _ready() -> void:
+	guard = get_node_or_null("Guard")
+	if guard == null:
+		guard = preload("res://sandbox/guard.gd").new()
+		guard.name = "Guard"
+		guard.actor_path = NodePath("..")
+		add_child(guard)
 	health = max_health
 	spawn_position = global_position
 	collision_layer = 8
@@ -89,8 +108,24 @@ func _ready() -> void:
 	var blade := BoxMesh.new()
 	blade.size = Vector3(0.15, 0.1, 1.4)
 	weapon.mesh = blade
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color("c6c8c1")
+	steel.metallic = 0.65
+	steel.roughness = 0.3
+	weapon.material_override = steel
 	weapon.position = Vector3(0.4, 1, -0.7)
 	add_child(weapon)
+	shield = MeshInstance3D.new()
+	var shield_box := BoxMesh.new()
+	shield_box.size = Vector3(0.65, 0.75, 0.12)
+	shield.mesh = shield_box
+	var shield_color := StandardMaterial3D.new()
+	shield_color.albedo_color = Color("7e3e39")
+	shield_color.metallic = 0.35
+	shield_color.roughness = 0.55
+	shield.material_override = shield_color
+	shield.position = Vector3(-0.4, 1.1, -0.2)
+	add_child(shield)
 	var points := PackedVector3Array()
 	for height in [-melee_height / 2.0, melee_height / 2.0]:
 		points.append(Vector3(0, height, 0))
@@ -105,22 +140,34 @@ func _ready() -> void:
 	update_visuals()
 
 func begin_melee() -> void:
+	if guard_broken():
+		return
 	state = "MELEE_STARTUP"
 	elapsed = 0.0
 	attack_yaw = rotation.y
 	hit_player = false
 
 func begin_fireball() -> void:
+	if guard_broken():
+		return
 	state = "FIREBALL_STARTUP"
 	elapsed = 0.0
 	attack_yaw = rotation.y
 	aim_point = player.global_position + Vector3(0, 1, 0)
 
 func _physics_process(delta: float) -> void:
+	if guard_broken() and health > 0:
+		velocity.x = 0
+		velocity.z = 0
+		velocity.y -= 22.4 * delta
+		move_and_slide()
+		update_visuals()
+		return
 	if health <= 0.0:
 		reset_remaining -= delta
 		if reset_remaining <= 0.0:
 			health = max_health
+			guard.reset()
 			stagger_remaining = 0.0
 			freeze_remaining = 0.0
 			visual.position = Vector3(0, 0.9, 0)
@@ -159,6 +206,7 @@ func _physics_process(delta: float) -> void:
 		elapsed += delta
 		if state == "MELEE_STARTUP" and elapsed >= melee_startup:
 			state = "MELEE_ACTIVE"
+			Feedback.sound(self, "light_swing")
 			elapsed = 0.0
 		elif state == "MELEE_ACTIVE" and elapsed >= melee_active:
 			state = "MELEE_RECOVERY"
@@ -178,7 +226,7 @@ func _physics_process(delta: float) -> void:
 	if state != "IDLE" or not ai_enabled:
 		velocity.x = 0.0
 		velocity.z = 0.0
-	velocity.y -= 28.0 * delta
+	velocity.y -= 22.4 * delta
 	move_and_slide()
 	velocity.x = 0.0
 	velocity.z = 0.0
@@ -197,6 +245,9 @@ func query_melee() -> void:
 			continue
 		var impact = Impact.new()
 		impact.damage = melee_damage
+		impact.guard_damage = melee_guard_damage
+		impact.stagger_duration = melee_stagger
+		impact.hit_stop = melee_hit_stop
 		impact.melee = true
 		impact.blockable = true
 		impact.parryable = true
@@ -204,11 +255,13 @@ func query_melee() -> void:
 		player.receive_attack(impact, global_position, self)
 
 func fire_projectile():
+	Feedback.sound(self, "cast")
 	var projectile = Projectile.new()
 	projectile.attacker = self
 	projectile.speed = projectile_speed
 	projectile.impact = Impact.new()
 	projectile.impact.damage = projectile_damage
+	projectile.impact.guard_damage = projectile_guard_damage
 	projectile.impact.blockable = projectile_blockable
 	projectile.impact.reflectable = projectile_reflectable
 	get_parent().add_child(projectile)
@@ -222,14 +275,22 @@ func receive_attack(impact: Resource, origin: Vector3, _attacker: Node) -> Strin
 	var incoming := origin - global_position
 	incoming.y = 0
 	var in_front := not incoming.is_zero_approx() and (-global_basis.z).dot(incoming.normalized()) >= 0.5
-	if test_guard_mode > 0 and in_front and not impact.guard_break:
+	if test_guard_mode > 0 and in_front and not impact.guard_break and not guard_broken() and stagger_remaining <= 0 and has_shield_guard():
 		if test_guard_mode == 2 and impact.melee and impact.parryable:
 			if is_instance_valid(_attacker) and _attacker.has_method("stagger"):
 				_attacker.stagger(0.6, 0.035)
+			Feedback.impact(self, "parry")
 			return "PARRY"
 		if impact.blockable:
+			guard.absorb(impact.guard_damage)
+			if not guard_broken():
+				Feedback.impact(self, "block")
 			return "BLOCK"
-	health = maxf(0, health - impact.damage)
+	var health_before := health
+	health = maxf(0, health - maxf(0, impact.damage))
+	DamageNumber.show_damage(self, health_before - health)
+	if health_before > health:
+		Feedback.impact(self, impact.feedback_kind)
 	flash_remaining = flash_duration
 	var away := global_position - origin
 	away.y = 0.0
@@ -243,7 +304,7 @@ func receive_attack(impact: Resource, origin: Vector3, _attacker: Node) -> Strin
 	return "HIT"
 
 func stagger(duration: float, freeze_time: float = 0.0) -> void:
-	if health <= 0.0:
+	if health <= 0.0 or guard_broken():
 		return
 	stagger_remaining = maxf(stagger_remaining, duration)
 	freeze_remaining = maxf(freeze_remaining, freeze_time)
@@ -253,9 +314,17 @@ func stagger(duration: float, freeze_time: float = 0.0) -> void:
 	velocity = Vector3.ZERO
 
 func update_visuals() -> void:
+	if weapon != null:
+		weapon.mesh.size = Vector3(0.15, 0.1, 1.4) if has_shield_guard() else Vector3(0.34, 0.14, 2.4)
+		weapon.position.z = -0.7 if has_shield_guard() else -1.2
+	if shield != null:
+		shield.visible = has_shield_guard()
+		shield.position.z = -0.55 if is_guard_held() or state == "PARRY_WINDOW" else -0.2
 	var color := Color("b9554c")
 	if state in ["MELEE_STARTUP", "FIREBALL_STARTUP"]:
 		color = Color("edbc45")
+	elif state == "GUARD_BREAK":
+		color = Color("e87bda")
 	elif state == "STAGGER":
 		color = Color("77bddd")
 	elif state == "DEAD":
@@ -263,3 +332,30 @@ func update_visuals() -> void:
 	material.albedo_color = Color.WHITE if flash_remaining > 0.0 else color
 	weapon.rotation.y = -0.9 if state == "MELEE_STARTUP" else (0.9 if state == "MELEE_ACTIVE" else 0.0)
 	melee_debug.visible = debug_enabled and state in ["MELEE_STARTUP", "MELEE_ACTIVE"]
+func has_shield_guard() -> bool:
+	return true
+
+func guard_broken() -> bool:
+	return $Guard.is_broken()
+
+func is_guard_held() -> bool:
+	return has_shield_guard() and (state == "BLOCK" or test_guard_mode == 1) and not guard_broken()
+
+func on_guard_break() -> void:
+	Feedback.impact(self, "guard_break")
+	state = "GUARD_BREAK"
+	stagger_remaining = 0
+	freeze_remaining = 0
+	elapsed = 0
+	hit_player = true
+	velocity.x = 0
+	velocity.z = 0
+	visual.position = Vector3(0, 0.9, stagger_recoil_distance)
+	update_visuals()
+
+func on_guard_recovered() -> void:
+	state = "IDLE"
+	cooldown = attack_interval
+	stagger_remaining = 0
+	freeze_remaining = 0
+	update_visuals()

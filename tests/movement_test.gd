@@ -17,6 +17,7 @@ func _initialize() -> void:
 	call_deferred("run_checks")
 func run_checks() -> void:
 	var arena = load("res://sandbox/arena.tscn").instantiate()
+	preload("res://tests/baseline_tuning.gd").apply(arena)
 	root.add_child(arena)
 	var player = arena.get_node("Player")
 	arena.get_node("TestEnemy").ai_enabled = false

@@ -43,6 +43,7 @@ func run_checks() -> void:
 	switch_button.pressed = true
 	check(InputMap.event_is_action(switch_button, "weapon_switch"), "Controller Y/Triangle must bind test switching")
 	var arena = load("res://sandbox/arena.tscn").instantiate()
+	preload("res://tests/baseline_tuning.gd").apply(arena)
 	root.add_child(arena)
 	player = arena.get_node("Player")
 	dummy = arena.get_node("TrainingDummy")
@@ -128,7 +129,8 @@ func run_checks() -> void:
 	check(player.health == before - 12 and not is_instance_valid(shot), "Greatsword parry window must take projectile damage without block/reflect")
 	await ticks(70)
 	action("defense", false)
-	check(player.switch_weapon(), "Idle Greatsword must switch back")
+	check(player.switch_weapon(), "Idle Greatsword must advance weapon cycle")
+	check(player.switch_weapon() and player.switch_weapon(), "Cycle returns through Staff/Bow to shield")
 	check(player.weapon_set == player.get_node("SwordShield"), "Sword & Shield must remain equipped through same interface")
 	action("defense")
 	await ticks(2)

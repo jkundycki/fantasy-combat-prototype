@@ -1,11 +1,13 @@
 extends Node3D
 
+const Feedback = preload("res://sandbox/combat_feedback.gd")
 const Impact = preload("res://sandbox/incoming_attack.gd")
 @export_group("Timing and commitment")
-@export_range(0.0, 2.0) var startup_duration: float = 0.09
-@export_range(0.0084, 1.0) var active_duration: float = 0.12
-@export_range(0.0, 2.0) var recovery_duration: float = 0.2
+@export_range(0.0, 2.0) var startup_duration: float = 0.18
+@export_range(0.0084, 1.0) var active_duration: float = 0.24
+@export_range(0.0, 2.0) var recovery_duration: float = 0.4
 @export var damage: float = 25.0
+@export var guard_damage: float = 15.0
 @export_range(0.0, 1.0) var movement_multiplier: float = 0.55
 @export_range(0.0, 720.0) var turn_speed_degrees: float = 0.0
 @export_group("Hitbox")
@@ -15,7 +17,7 @@ const Impact = preload("res://sandbox/incoming_attack.gd")
 @export var hitbox_center_height: float = 1.0
 @export_group("Impact")
 @export var stagger_duration: float = 0.0
-@export_range(0.0, 0.15) var hit_stop_duration: float = 0.035
+@export_range(0.0, 0.15) var hit_stop_duration: float = 0.07
 @export var shield_bash: bool = false
 @export var commitment_time: float = -1.0
 @export_range(-1.0, 1.0) var feint_startup_fraction: float = -1.0
@@ -50,7 +52,8 @@ func _ready() -> void:
 	debug_mesh.mesh = shape.get_debug_mesh()
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = Color.CYAN if shield_bash else Color.ORANGE
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(Color.CYAN if shield_bash else Color.ORANGE, 0.18)
 	debug_mesh.material_override = material
 	debug_mesh.position.y = hitbox_center_height
 	add_child(debug_mesh)
@@ -76,6 +79,7 @@ func tick(delta: float) -> void:
 	weapon.global_rotation.y = locked_yaw
 	rotation.y = 0.0
 	weapon.player.visual.global_rotation.y = locked_yaw
+	var previous_state := state
 	elapsed += delta
 	while busy():
 		var duration := startup_duration if state == STARTUP else (active_duration if state == ACTIVE else recovery_duration)
@@ -84,6 +88,8 @@ func tick(delta: float) -> void:
 		elapsed -= duration
 		state = ACTIVE if state == STARTUP else (RECOVERY if state == ACTIVE else IDLE)
 	if state == ACTIVE:
+		if previous_state != ACTIVE:
+			Feedback.sound(weapon.player, "heavy_swing" if name == "Heavy" else ("bash" if shield_bash or guard_break else "light_swing"))
 		query_hits()
 
 func query_hits() -> void:
@@ -102,7 +108,9 @@ func query_hits() -> void:
 		if not get_world_3d().direct_space_state.intersect_ray(ray).is_empty():
 			continue
 		var impact = Impact.new()
+		impact.feedback_kind = "heavy" if name == "Heavy" else ("bash" if shield_bash or guard_break else "hit")
 		impact.damage = damage
+		impact.guard_damage = guard_damage
 		impact.melee = true
 		impact.blockable = not guard_break
 		impact.parryable = not guard_break

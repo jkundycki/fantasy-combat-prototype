@@ -1,6 +1,6 @@
 extends Node
 
-@export var combo_timeout: float = 0.65
+@export var combo_timeout: float = 1.3
 @export_range(0.0, 1.0) var buffer_recovery_fraction: float = 0.35
 var attacks: Array = []
 var step: int = 0

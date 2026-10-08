@@ -4,16 +4,24 @@ extends Label
 @onready var player = get_node(player_path)
 @onready var dummy = get_node("../../TrainingDummy")
 @onready var enemy = get_node("../../TestEnemy")
-var debug_enabled: bool = true
+var debug_enabled: bool = false
+
+func _ready() -> void:
+	apply_debug()
+
+func apply_debug() -> void:
+	visible = debug_enabled
+	for weapon in player.weapon_sets:
+		weapon.debug_enabled = debug_enabled
+		weapon.update_visuals()
+	enemy.debug_enabled = debug_enabled
+	if enemy.material != null:
+		enemy.update_visuals()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("combat_debug") and not event.is_echo():
 		debug_enabled = not debug_enabled
-		visible = debug_enabled
-		player.weapon_set.debug_enabled = debug_enabled
-		enemy.debug_enabled = debug_enabled
-		player.weapon_set.update_visuals()
-		enemy.update_visuals()
+		apply_debug()
 
 func _process(_delta: float) -> void:
 	var weapon = player.weapon_set
@@ -26,3 +34,5 @@ func _process(_delta: float) -> void:
 	text += "\nGuard fixture: %s | Player stagger %.2f s" % [["OFF", "BLOCK", "PARRY" ][enemy.test_guard_mode], player.stagger_remaining]
 
 	text += "\n" + enemy.ai_debug_text()
+
+	text += "\nOpponent " + enemy.guard.debug_text() + "\nF7 ALWAYS_BLOCK | Enemy weapon: " + enemy.weapon_label()

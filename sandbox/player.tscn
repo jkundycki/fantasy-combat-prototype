@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://sandbox/player.gd" id="1"]
 [ext_resource type="Script" path="res://sandbox/camera_rig.gd" id="2"]
@@ -6,6 +6,8 @@
 [ext_resource type="Script" path="res://sandbox/melee_swing.gd" id="4"]
 [ext_resource type="Script" path="res://sandbox/greatsword.gd" id="5"]
 [ext_resource type="Script" path="res://sandbox/primary_chain.gd" id="6"]
+[ext_resource type="Script" path="res://sandbox/guard.gd" id="7"]
+[ext_resource type="Script" path="res://sandbox/ranged_weapon.gd" id="8"]
 [sub_resource type="CapsuleShape3D" id="CapsuleShape"]
 radius = 0.35
 height = 1.8
@@ -22,8 +24,8 @@ material = SubResource("FacingMaterial")
 size = Vector3(0.22, 0.18, 0.25)
 
 [node name="Player" type="CharacterBody3D"]
-collision_layer = 4
-collision_mask = 1
+collision_layer = 4.0
+collision_mask = 1.0
 floor_snap_length = 0.25
 script = ExtResource("1")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
@@ -56,15 +58,16 @@ script = ExtResource("3")
 script = ExtResource("4")
 [node name="Bash" type="Node3D" parent="SwordShield"]
 script = ExtResource("4")
-startup_duration = 0.06
-active_duration = 0.09
-recovery_duration = 0.24
+guard_damage = 0.0
+startup_duration = 0.12
+active_duration = 0.18
+recovery_duration = 0.48
 damage = 8.0
 movement_multiplier = 0.65
 reach = 1.25
 arc_degrees = 65.0
-stagger_duration = 0.2
-hit_stop_duration = 0.045
+stagger_duration = 0.4
+hit_stop_duration = 0.09
 shield_bash = true
 guard_break = true
 [node name="Greatsword" type="Node3D" parent="."]
@@ -72,99 +75,103 @@ visible = false
 script = ExtResource("5")
 [node name="Slash" type="Node3D" parent="Greatsword"]
 script = ExtResource("4")
-startup_duration = 0.22
-active_duration = 0.18
-recovery_duration = 0.38
+startup_duration = 0.44
+active_duration = 0.36
+recovery_duration = 0.76
 damage = 40.0
 movement_multiplier = 0.4
 reach = 2.9
 arc_degrees = 140.0
-stagger_duration = 0.3
-hit_stop_duration = 0.055
+stagger_duration = 0.6
+hit_stop_duration = 0.11
 hit_feedback = "GREATSWORD HIT"
 [node name="Heavy" type="Node3D" parent="Greatsword"]
 script = ExtResource("4")
-startup_duration = 0.48
-active_duration = 0.12
-recovery_duration = 0.65
+guard_damage = 40.0
+startup_duration = 0.96
+active_duration = 0.24
+recovery_duration = 1.3
 damage = 65.0
 movement_multiplier = 0.2
 reach = 3.1
 arc_degrees = 40.0
-stagger_duration = 0.95
-hit_stop_duration = 0.075
+stagger_duration = 1.9
+hit_stop_duration = 0.15
 hit_feedback = "HEAVY HIT"
-turn_speed_degrees = 180.0
+turn_speed_degrees = 90.0
 feint_startup_fraction = 0.65
-commitment_time = 0.312
+commitment_time = 0.624
 feint_window_start = -1.0
 feint_window_end = -1.0
 
 [node name="PrimaryChain" type="Node" parent="SwordShield"]
 script = ExtResource("6")
-combo_timeout = 0.65
+combo_timeout = 1.3
 [node name="Reverse" type="Node3D" parent="SwordShield"]
 script = ExtResource("4")
-startup_duration = 0.11
-active_duration = 0.12
-recovery_duration = 0.22
+startup_duration = 0.22
+active_duration = 0.24
+recovery_duration = 0.44
 damage = 27.0
 reverse_swing = true
 [node name="Heavy" type="Node3D" parent="SwordShield"]
 script = ExtResource("4")
-startup_duration = 0.42
-active_duration = 0.12
-recovery_duration = 0.42
+guard_damage = 40.0
+startup_duration = 0.84
+active_duration = 0.24
+recovery_duration = 0.84
 damage = 45.0
 reach = 1.65
 arc_degrees = 75.0
 movement_multiplier = 0.3
-turn_speed_degrees = 180.0
+turn_speed_degrees = 90.0
 feint_startup_fraction = 0.65
-feint_window_start = 0.10
-feint_window_end = 0.26
-stagger_duration = 0.7
-hit_stop_duration = 0.06
+feint_window_start = 0.2
+feint_window_end = 0.52
+stagger_duration = 1.4
+hit_stop_duration = 0.12
 shield_bash = true
 hit_feedback = "SHIELD SLAM"
-commitment_time = 0.273
+commitment_time = 0.546
 
 [node name="Feint" type="Node3D" parent="SwordShield"]
 script = ExtResource("4")
-startup_duration = 0.07
-active_duration = 0.08
-recovery_duration = 0.32
+guard_damage = 0.0
+startup_duration = 0.14
+active_duration = 0.16
+recovery_duration = 0.64
 damage = 5.0
 reach = 1.1
 arc_degrees = 55.0
 movement_multiplier = 0.55
-stagger_duration = 0.2
-hit_stop_duration = 0.025
+stagger_duration = 0.4
+hit_stop_duration = 0.05
 shield_bash = true
 guard_break = true
 hit_feedback = "GUARD-BREAK SHIELD JAB"
 [node name="PrimaryChain" type="Node" parent="Greatsword"]
 script = ExtResource("6")
-combo_timeout = 0.8
+combo_timeout = 1.6
 [node name="Reverse" type="Node3D" parent="Greatsword"]
 script = ExtResource("4")
-startup_duration = 0.25
-active_duration = 0.18
-recovery_duration = 0.42
+startup_duration = 0.5
+active_duration = 0.36
+recovery_duration = 0.84
 damage = 43.0
 reach = 2.9
 arc_degrees = 140.0
 movement_multiplier = 0.35
 reverse_swing = true
-stagger_duration = 0.35
-hit_stop_duration = 0.055
+stagger_duration = 0.7
+hit_stop_duration = 0.11
 hit_feedback = "REVERSE GREATSWORD HIT"
 [node name="Finisher" type="Node3D" parent="Greatsword"]
 script = ExtResource("4")
+guard_damage = 25.0
 hit_feedback = "GREATSWORD FINISHER"
-startup_duration = 0.29
-active_duration = 0.18
-recovery_duration = 0.46
+startup_duration = 0.58
+active_duration = 0.36
+recovery_duration = 0.92
 damage = 50.0
 reach = 3.0
 arc_degrees = 130.0
@@ -174,31 +181,51 @@ feint_startup_fraction = -1.0
 commitment_time = -1.0
 feint_window_start = -1.0
 feint_window_end = -1.0
-stagger_duration = 0.4
-hit_stop_duration = 0.065
+stagger_duration = 0.8
+hit_stop_duration = 0.13
 
 [node name="Feint" type="Node3D" parent="Greatsword"]
 script = ExtResource("4")
-startup_duration = 0.08
-active_duration = 0.08
-recovery_duration = 0.38
+guard_damage = 0.0
+startup_duration = 0.16
+active_duration = 0.16
+recovery_duration = 0.76
 damage = 4.0
 reach = 1.05
 arc_degrees = 50.0
 movement_multiplier = 0.45
-stagger_duration = 0.2
-hit_stop_duration = 0.025
+stagger_duration = 0.4
+hit_stop_duration = 0.05
 guard_break = true
 hit_feedback = "GUARD-BREAK HILT BASH"
 
 [node name="Finisher" type="Node3D" parent="SwordShield"]
 script = ExtResource("4")
-startup_duration = 0.15
-active_duration = 0.12
-recovery_duration = 0.26
+guard_damage = 25.0
+startup_duration = 0.3
+active_duration = 0.24
+recovery_duration = 0.52
 damage = 29.0
 reach = 2.3
 arc_degrees = 110.0
 movement_multiplier = 0.5
-hit_stop_duration = 0.045
+hit_stop_duration = 0.09
 hit_feedback = "FINISHING SWORD CUT"
+
+[node name="Guard" type="Node" parent="SwordShield"]
+script = ExtResource("7")
+
+
+[node name="Staff" type="Node3D" parent="."]
+visible = false
+script = ExtResource("8")
+[node name="Bow" type="Node3D" parent="."]
+visible = false
+script = ExtResource("8")
+kind = 1
+startup_duration = 0.4
+recovery_duration = 0.56
+damage = 28.0
+projectile_speed = 24.0
+projectile_radius = 0.055
+projectile_lifetime = 4.0

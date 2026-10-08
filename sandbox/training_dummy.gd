@@ -5,6 +5,8 @@ extends Area3D
 @export var recoil_distance: float = 0.12
 @export var recoil_return_speed: float = 2.0
 @export var reset_delay: float = 0.6
+const Feedback = preload("res://sandbox/combat_feedback.gd")
+const DamageNumber = preload("res://sandbox/damage_number.gd")
 var health: float = 100.0
 var flash_remaining: float = 0.0
 var freeze_remaining: float = 0.0
@@ -34,10 +36,14 @@ func _ready() -> void:
 	visual.mesh = mesh
 	add_child(visual)
 
-func receive_hit(amount: float, direction: Vector3, freeze_time: float) -> bool:
+func receive_hit(amount: float, direction: Vector3, freeze_time: float, impact_kind: String = "hit") -> bool:
 	if health <= 0.0:
 		return false
-	health = maxf(0.0, health - amount)
+	var before := health
+	health = maxf(0.0, health - maxf(0, amount))
+	DamageNumber.show_damage(self, before - health, 1.1)
+	if before > health:
+		Feedback.impact(self, impact_kind)
 	hits_received += 1
 	flash_remaining = flash_duration
 	freeze_remaining = freeze_time
@@ -61,4 +67,4 @@ func _physics_process(delta: float) -> void:
 func receive_attack(impact: Resource, origin: Vector3, _attacker: Node) -> String:
 	var away := global_position - origin
 	away.y = 0.0
-	return "HIT" if receive_hit(impact.damage, away.normalized(), impact.hit_stop) else "DEAD"
+	return "HIT" if receive_hit(impact.damage, away.normalized(), impact.hit_stop, impact.feedback_kind) else "DEAD"

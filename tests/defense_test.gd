@@ -28,6 +28,7 @@ func incoming(melee: bool, blockable: bool, parryable: bool, reflectable: bool):
 	impact.reflectable = reflectable
 	return impact
 func guard(normal: bool = false) -> void:
+	weapon.guard.reset() # Each legacy defense case starts with a fresh shield.
 	action("defense", false)
 	weapon.freeze_remaining = 0
 	await ticks(2)
@@ -52,6 +53,7 @@ func run_checks() -> void:
 		check(InputMap.event_is_action(event, binding[1]), "Controller binding must map to universal action")
 	check(not InputMap.has_action("dodge_sprint") and not InputMap.has_action("attack"), "Old sprint and class-style attack action names must be removed")
 	arena = load("res://sandbox/arena.tscn").instantiate()
+	preload("res://tests/baseline_tuning.gd").apply(arena)
 	root.add_child(arena)
 	player = arena.get_node("Player")
 	weapon = player.weapon_set
@@ -120,11 +122,11 @@ func run_checks() -> void:
 	await guard(true)
 	launch(incoming(false, true, false, true))
 	await ticks(20)
-	check(player.health == 100 and weapon.last_event == "BLOCK", "Normal shield must dissipate reflectable fireball without reflecting")
+	check(player.health == 100 and weapon.last_event.begins_with("GUARD DAMAGE") and weapon.guard.current == 85, "Normal shield must dissipate reflectable fireball without reflecting")
 	await guard()
 	launch(incoming(false, true, false, false))
 	await ticks(20)
-	check(player.health == 100 and weapon.last_event == "BLOCK", "Unreflectable blockable projectile must never reflect")
+	check(player.health == 100 and weapon.last_event.begins_with("GUARD DAMAGE") and weapon.guard.current == 85, "Unreflectable blockable projectile must never reflect")
 	await guard()
 	launch(incoming(false, false, false, false), 0, 100)
 	await ticks(5)

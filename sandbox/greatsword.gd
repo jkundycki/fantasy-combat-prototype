@@ -1,13 +1,14 @@
 extends Node3D
+const Feedback = preload("res://sandbox/combat_feedback.gd")
 
 @export_group("Timed melee parry")
-@export var parry_startup: float = 0.04
-@export var parry_window: float = 0.18
-@export var parry_recovery: float = 0.3
-@export var successful_parry_recovery: float = 0.08
+@export var parry_startup: float = 0.08
+@export var parry_window: float = 0.36
+@export var parry_recovery: float = 0.6
+@export var successful_parry_recovery: float = 0.16
 @export var defensive_arc_degrees: float = 110.0
-@export var parry_stagger_duration: float = 0.9
-@export var parry_hit_stop: float = 0.055
+@export var parry_stagger_duration: float = 1.8
+@export var parry_hit_stop: float = 0.11
 @export var parry_movement_multiplier: float = 0.65
 
 @onready var player = get_parent()
@@ -15,7 +16,7 @@ extends Node3D
 @onready var heavy = $Heavy
 @onready var chain = $PrimaryChain
 @onready var feint = $Feint
-@export_range(0.0, 0.5) var hard_feint_recovery: float = 0.15
+@export_range(0.0, 0.5) var hard_feint_recovery: float = 0.3
 var feint_recovery_remaining: float = 0.0
 var bash_soft_feint: bool = false
 var defense_held: bool = false
@@ -24,7 +25,7 @@ var parry_elapsed: float = 0.0
 var recovery_remaining: float = 0.0
 var freeze_remaining: float = 0.0
 var hold_movement_this_tick: bool = false
-var debug_enabled: bool = true
+var debug_enabled: bool = false
 var last_event: String = ""
 var event_remaining: float = 0.0
 var blade_pivot: Node3D
@@ -33,17 +34,23 @@ var material: StandardMaterial3D
 func _ready() -> void:
 	chain.attacks = [$Slash, $Reverse, $Finisher]
 	blade_pivot = Node3D.new()
-	blade_pivot.position.y = 1.15
+	blade_pivot.position = Vector3(0.12, 1.15, 0)
 	add_child(blade_pivot)
 	var blade := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
-	mesh.size = Vector3(0.3, 0.16, slash.reach)
+	mesh.size = Vector3(0.4, 0.16, slash.reach)
 	material = StandardMaterial3D.new()
 	material.albedo_color = Color("bac5d1")
+	material.metallic = 0.7
+	material.roughness = 0.3
 	mesh.material = material
 	blade.mesh = mesh
 	blade.position.z = -slash.reach / 2.0
 	blade_pivot.add_child(blade)
+	var trail = preload("res://sandbox/weapon_trail.gd").new()
+	trail.weapon = self
+	trail.tip_distance = slash.reach
+	blade_pivot.add_child(trail)
 	var guard := MeshInstance3D.new()
 	var guard_mesh := BoxMesh.new()
 	guard_mesh.size = Vector3(0.85, 0.2, 0.15)
@@ -119,7 +126,7 @@ func defense(held: bool) -> void:
 	# Release does not cancel the finite attempt; holding does not repeat it.
 
 func busy() -> bool:
-	return chain.busy() or heavy.busy() or feint.busy() or feint_recovery_remaining > 0 or parry_state != "DOWN"
+	return player.guard_broken() or chain.busy() or heavy.busy() or feint.busy() or feint_recovery_remaining > 0 or parry_state != "DOWN"
 func active_swing():
 	return feint if feint.busy() else (heavy if heavy.busy() else chain.active())
 func movement_scale() -> float:
@@ -171,6 +178,7 @@ func defend(impact: Resource, origin: Vector3, attacker: Node) -> String:
 	parry_state = "RECOVERY"
 	recovery_remaining = successful_parry_recovery
 	freeze(parry_hit_stop)
+	Feedback.impact(player, "parry")
 	feedback("PARRY")
 	return "PARRY"
 

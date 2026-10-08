@@ -30,6 +30,7 @@ func run_checks() -> void:
 	stick.button_index = JOY_BUTTON_RIGHT_STICK
 	check(InputMap.event_is_action(stick, "cancel_feint"), "R3 maps to Cancel")
 	var arena = load("res://sandbox/arena.tscn").instantiate()
+	preload("res://tests/baseline_tuning.gd").apply(arena)
 	root.add_child(arena)
 	var player = arena.get_node("Player")
 	var enemy = arena.get_node("TestEnemy")
@@ -40,7 +41,7 @@ func run_checks() -> void:
 	enemy.set_physics_process(false)
 	enemy.global_position = Vector3(15, 0, 15)
 	arena.get_node("TrainingDummy").global_position = Vector3(15, 1, 15)
-	for weapon in player.weapon_sets:
+	for weapon in player.weapon_sets.slice(0, 2):
 		player.weapon_set = weapon
 		weapon.reset_combat()
 		check(weapon.primary(), "Light 1 starts")
@@ -107,7 +108,7 @@ func run_checks() -> void:
 	enemy.rotation.y = PI
 	for i in range(3):
 		await physics_frame
-	for weapon in player.weapon_sets:
+	for weapon in player.weapon_sets.slice(0, 2):
 		player.weapon_set = weapon
 		for guard in [1, 2, 0]:
 			player.stagger_remaining = 0

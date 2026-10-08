@@ -47,6 +47,7 @@ func _initialize() -> void:
 	call_deferred("run_checks")
 func run_checks() -> void:
 	arena = load("res://sandbox/arena.tscn").instantiate()
+	preload("res://tests/baseline_tuning.gd").apply(arena)
 	root.add_child(arena)
 	player = arena.get_node("Player")
 	weapon = player.weapon_set

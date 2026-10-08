@@ -40,9 +40,12 @@ func _initialize() -> void:
 	call_deferred("run_checks")
 func run_checks() -> void:
 	var arena = load("res://sandbox/arena.tscn").instantiate()
+	preload("res://tests/baseline_tuning.gd").apply(arena)
 	root.add_child(arena)
 	player = arena.get_node("Player")
 	bot = arena.get_node("TestEnemy")
+	bot.mirror_weapon = false
+	bot.applied_weapon = 0
 	bot.ai_enabled = false
 	await ticks(100)
 	player.set_physics_process(false)
@@ -150,7 +153,7 @@ func run_checks() -> void:
 	bot.commit_response("GREED")
 	var yaw: float = bot.attack_yaw
 	player.global_position.x += 3
-	advance(0.2)
+	advance(bot.melee_startup * 0.5)
 	check(bot.state == "MELEE_STARTUP" and absf(angle_difference(bot.rotation.y, yaw)) < 0.001, "Greed attack must preserve direction commitment")
 	bot.stagger(0.6, 0)
 	advance(0.2)

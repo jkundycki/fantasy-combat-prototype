@@ -1,24 +1,26 @@
 extends Node3D
+const Feedback = preload("res://sandbox/combat_feedback.gd")
 
 signal blocked(outcome: String, impact: Resource, attacker: Node)
 @export_group("Shield defense")
 @export_range(10.0, 180.0) var defensive_arc_degrees: float = 120.0
 @export_range(0.0, 0.5) var block_startup: float = 0.0
-@export_range(0.0, 0.5) var perfect_block_duration: float = 0.16
-@export_range(0.0, 3.0) var parry_stagger_duration: float = 0.85
-@export_range(0.0, 1.0) var defender_recovery: float = 0.08
-@export_range(0.0, 0.15) var parry_hit_stop: float = 0.045
-@export_range(0.0, 0.15) var block_hit_stop: float = 0.015
+@export_range(0.0, 0.5) var perfect_block_duration: float = 0.32
+@export_range(0.0, 3.0) var parry_stagger_duration: float = 1.7
+@export_range(0.0, 1.0) var defender_recovery: float = 0.16
+@export_range(0.0, 0.15) var parry_hit_stop: float = 0.09
+@export_range(0.0, 0.15) var block_hit_stop: float = 0.03
 @export_range(0.0, 1.0) var blocked_damage_multiplier: float = 0.0
 @export_range(0.0, 1.0) var defense_movement_multiplier: float = 0.7
 
 @onready var player = get_parent()
+@onready var guard = $Guard
 @onready var sword = $Sword
 @onready var bash = $Bash
 @onready var heavy = $Heavy
 @onready var chain = $PrimaryChain
 @onready var feint = $Feint
-@export_range(0.0, 0.5) var hard_feint_recovery: float = 0.15
+@export_range(0.0, 0.5) var hard_feint_recovery: float = 0.3
 var feint_recovery_remaining: float = 0.0
 var bash_soft_feint: bool = false
 @export var spell_reflect_speed_multiplier: float = 2.0
@@ -28,7 +30,7 @@ var raise_elapsed: float = 0.0
 var recovery_remaining: float = 0.0
 var freeze_remaining: float = 0.0
 var hold_movement_this_tick: bool = false
-var debug_enabled: bool = true
+var debug_enabled: bool = false
 var last_event: String = ""
 var event_remaining: float = 0.0
 var shield_flash: float = 0.0
@@ -41,20 +43,38 @@ func _ready() -> void:
 	chain.attacks = [$Sword, $Reverse, $Finisher]
 	sword_pivot = Node3D.new()
 	add_child(sword_pivot)
-	sword_pivot.position.y = 1.0
+	sword_pivot.position = Vector3(0.3, 1.0, 0)
 	var blade := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(0.12, 0.08, sword.reach)
 	blade.mesh = mesh
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color("d1d6d2")
+	steel.metallic = 0.7
+	steel.roughness = 0.3
+	blade.material_override = steel
 	blade.position.z = -sword.reach / 2.0
 	sword_pivot.add_child(blade)
+	var trail = preload("res://sandbox/weapon_trail.gd").new()
+	trail.weapon = self
+	trail.tip_distance = sword.reach
+	sword_pivot.add_child(trail)
 	shield_mesh = MeshInstance3D.new()
 	var shield := BoxMesh.new()
 	shield.size = Vector3(0.75, 0.9, 0.15)
 	shield_material = StandardMaterial3D.new()
-	shield_material.albedo_color = Color("577db8")
+	shield_material.albedo_color = Color("375e6c")
+	shield_material.metallic = 0.45
+	shield_material.roughness = 0.4
 	shield.material = shield_material
 	shield_mesh.mesh = shield
+	var rim := MeshInstance3D.new()
+	var rim_mesh := BoxMesh.new()
+	rim_mesh.size = Vector3(0.84, 0.98, 0.08)
+	rim.mesh = rim_mesh
+	rim.material_override = steel
+	rim.position.z = 0.07
+	shield_mesh.add_child(rim)
 	add_child(shield_mesh)
 	make_defense_debug()
 	update_visuals()
@@ -137,7 +157,7 @@ func begin_swing(swing) -> bool:
 	return true
 
 func defense(held: bool) -> void:
-	defense_held = held
+	defense_held = held and not player.guard_broken()
 	if held:
 		chain.cancel_continuation()
 	if not held:
@@ -148,7 +168,7 @@ func lower_shield() -> void:
 	raise_elapsed = 0.0
 
 func busy() -> bool:
-	return chain.busy() or heavy.busy() or bash.busy() or feint.busy() or feint_recovery_remaining > 0
+	return player.guard_broken() or chain.busy() or heavy.busy() or bash.busy() or feint.busy() or feint_recovery_remaining > 0
 
 func active_swing():
 	return feint if feint.busy() else (heavy if heavy.busy() else (bash if bash.busy() else chain.active()))
@@ -195,7 +215,7 @@ func shield_state() -> String:
 	return "BLOCK"
 
 func defend(impact: Resource, origin: Vector3, attacker: Node) -> String:
-	if impact.guard_break or shield_state() not in ["BLOCK", "PERFECT BLOCK"] or busy() or player.dodge_remaining > 0.0:
+	if player.guard_broken() or impact.guard_break or shield_state() not in ["BLOCK", "PERFECT BLOCK"] or busy() or player.dodge_remaining > 0.0:
 		return "HIT"
 	var incoming: Vector3 = origin - player.global_position
 	incoming.y = 0.0
@@ -214,12 +234,16 @@ func defend(impact: Resource, origin: Vector3, attacker: Node) -> String:
 			result = "REFLECT"
 	if result == "HIT" and impact.blockable:
 		result = "BLOCK"
+	if result == "BLOCK":
+		guard.absorb(impact.guard_damage)
 	if result != "HIT":
+		if not guard.is_broken():
+			Feedback.impact(player, "parry" if result == "PARRY" else ("reflect" if result == "REFLECT" else "block"))
 		shield_flash = 0.12
 		recovery_remaining = defender_recovery
 		freeze(parry_hit_stop if result in ["PARRY", "REFLECT"] else block_hit_stop)
-		feedback("SPELL REFLECT" if result == "REFLECT" else result)
-		blocked.emit(result, impact, attacker) # Future guard cost attaches here.
+		feedback("GUARD BREAK" if guard.is_broken() else ("SPELL REFLECT" if result == "REFLECT" else ("GUARD DAMAGE %.0f" % guard.last_damage if result == "BLOCK" else result)))
+		blocked.emit(result, impact, attacker)
 	return result
 
 func freeze(duration: float) -> void:
@@ -253,7 +277,7 @@ func update_visuals() -> void:
 			shield_mesh.position.z = lerpf(-0.15, -1.0, shield_attack.elapsed / shield_attack.active_duration)
 		else:
 			shield_mesh.position.z = lerpf(-1.0, -0.35, clampf(shield_attack.elapsed / maxf(shield_attack.recovery_duration, 0.001), 0, 1))
-	shield_material.albedo_color = Color.WHITE if shield_flash > 0.0 else (Color("e6ce55") if shield_state() == "PERFECT BLOCK" else Color("577db8"))
+	shield_material.albedo_color = Color.WHITE if shield_flash > 0.0 else (Color("e6ce55") if shield_state() == "PERFECT BLOCK" else Color("375e6c"))
 	for swing in chain.attacks:
 		swing.debug_update(debug_enabled)
 	bash.debug_update(debug_enabled)
@@ -274,7 +298,7 @@ func reset_combat() -> void:
 	hold_movement_this_tick = false
 func debug_text() -> String:
 	var extra := "GUARD-BREAK FEINT BASH" if feint.busy() else ("QUICK BASH" if bash.busy() else "PRIMARY")
-	return "SWORD & SHIELD | %s | Shield %s\n%s" % [extra, shield_state(), grammar_text() + "\n" + chain.debug_text(active_swing())]
+	return "SWORD & SHIELD | %s | Shield %s\n%s" % [extra, shield_state(), grammar_text() + "\n" + guard.debug_text() + "\n" + chain.debug_text(active_swing())]
 
 func reset_combo() -> void:
 	chain.reset()
